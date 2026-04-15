@@ -1,20 +1,30 @@
 import pandas as pd
 
-def recommend_foods(calories, goal="maintain"):
+def recommend_foods(calories, goal="maintain", disease="Healthy"):
     df = pd.read_csv("data/diet_recommendations_dataset.csv")
 
     # Clean column names
     df.columns = df.columns.str.lower().str.replace(" ", "_")
 
-    # 🔥 Match similar calorie users
-    df_filtered = df[
-        (df['daily_caloric_intake'] > calories - 200) &
-        (df['daily_caloric_intake'] < calories + 200)
+    # 🔥 Filter by disease type first
+    if disease and disease.lower() != "healthy":
+        df_filtered = df[df['disease_type'].str.lower() == disease.lower()]
+    else:
+        # For healthy people, exclude disease patients
+        df_filtered = df[df['disease_type'].isna()]
+
+    # 🔥 Then match similar calorie users
+    df_filtered = df_filtered[
+        (df_filtered['daily_caloric_intake'] > calories - 200) &
+        (df_filtered['daily_caloric_intake'] < calories + 200)
     ]
 
-    # fallback if empty
+    # fallback if empty - use any matching disease
     if df_filtered.empty:
-        df_filtered = df
+        if disease and disease.lower() != "healthy":
+            df_filtered = df[df['disease_type'].str.lower() == disease.lower()]
+        else:
+            df_filtered = df
 
     # 🔥 Pick best matching record
     user = df_filtered.sample(1).iloc[0]
