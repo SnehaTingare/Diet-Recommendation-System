@@ -6,8 +6,11 @@ from recommender import recommend_foods
 
 app = Flask(__name__)
 
-# ✅ Enable CORS
-CORS(app)
+# ✅ Enable CORS with explicit settings
+CORS(app, 
+    resources={r"/*": {"origins": "*"}},
+    methods=['GET', 'POST', 'OPTIONS'],
+    allow_headers=['Content-Type'])
 
 # ✅ Load model safely
 try:
@@ -33,6 +36,7 @@ def predict():
         height = float(data.get('height', 0))
         activity = float(data.get('activity', 1.2))
         goal = data.get('goal', 'maintain')
+        disease = data.get('disease', 'Healthy')
 
         # ✅ Model prediction
         if model is None:
@@ -42,7 +46,7 @@ def predict():
         calories = model.predict(input_data)[0]
 
         # ✅ Get detailed plan from dataset
-        plan = recommend_foods(calories, goal)
+        plan = recommend_foods(calories, goal, disease)
 
         # ✅ Structured response
         response = {
@@ -52,7 +56,8 @@ def predict():
                 "weight": weight,
                 "height": height,
                 "activity": activity,
-                "goal": goal
+                "goal": goal,
+                "disease": disease
             },
             "analysis": {
                 "recommended_calories": round(calories, 2),
