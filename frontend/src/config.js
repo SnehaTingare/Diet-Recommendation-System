@@ -5,3 +5,4 @@ export const API_ENDPOINTS = {
   PREDICT: `${API_BASE_URL}/predict`,
   HOME: API_BASE_URL,
 };
+//again committed 
