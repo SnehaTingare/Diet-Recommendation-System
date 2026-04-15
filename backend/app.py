@@ -5,7 +5,12 @@ import numpy as np
 from recommender import recommend_foods
 
 app = Flask(__name__)
-CORS(app)
+
+# ✅ Enable CORS with explicit settings
+CORS(app, 
+    resources={r"/*": {"origins": "*"}},
+    methods=['GET', 'POST', 'OPTIONS'],
+    allow_headers=['Content-Type'])
 
 # ✅ Load our new Assets
 try:
@@ -34,16 +39,7 @@ def predict():
         gender = data.get('gender', 'male')
         activity = float(data.get('activity', 1.2))
         goal = data.get('goal', 'maintain')
-        condition = data.get('condition', 'None') # New: Medical Condition
-
-        # ✅ 1. Calculate BMR/TDEE (Mifflin-St Jeor Algorithm)
-        # Instead of a pre-trained regression model, we use the standard formula
-        if gender.lower() == 'male':
-            bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
-        else:
-            bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161
-        
-        tdee = bmr * activity
+        disease = data.get('disease', 'Healthy')
 
         # Adjust for Goal
         if goal == 'lose': calories = tdee - 500
@@ -54,12 +50,20 @@ def predict():
         # This calls the new recommender.py we just updated
         plan = recommend_foods(calories, medical_condition=condition, goal=goal)
 
-        if "error" in plan:
-            raise Exception(plan["error"])
+        # ✅ Get detailed plan from dataset
+        plan = recommend_foods(calories, goal, disease)
 
         # ✅ 3. Structured Response for React Frontend
         response = {
             "status": "success",
+            "user_input": {
+                "age": age,
+                "weight": weight,
+                "height": height,
+                "activity": activity,
+                "goal": goal,
+                "disease": disease
+            },
             "analysis": {
                 "bmi": round(weight / ((height/100)**2), 2),
                 "recommended_calories": round(calories, 2),

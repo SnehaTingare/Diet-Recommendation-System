@@ -3,36 +3,56 @@ import numpy as np
 import pickle
 import os
 
-# Load the ML assets generated in Jupyter
-# Ensure these files are in the same directory or provide the correct path
-MODEL_PATH = 'diet_model.pkl'
-SCALER_PATH = 'scaler.pkl'
-DATA_PATH = 'final_food_data.csv'
+def recommend_foods(calories, goal="maintain", disease="Healthy"):
+    df = pd.read_csv("data/diet_recommendations_dataset.csv")
 
-def recommend_foods(calories, medical_condition="None", goal="maintain"):
-    # 1. Load the Model, Scaler, and Dataset
-    if not os.path.exists(MODEL_PATH):
-        return {"error": "Model files not found. Please run the Jupyter training first."}
-    
-    with open(MODEL_PATH, 'rb') as f:
-        model = pickle.load(f)
-    with open(SCALER_PATH, 'rb') as f:
-        scaler = pickle.load(f)
-    
-    df = pd.read_csv(DATA_PATH)
+    # Clean column names
+    df.columns = df.columns.str.lower().str.replace(" ", "_")
 
-    # 2. Medical Filtering (Hard Constraints)
-    # This ensures we only look at foods safe for the user's condition
-    condition_map = {
-        'Diabetes': 'Diabetes_Friendly',
-        'Heart Disease': 'Heart_Friendly',
-        'Kidney Disease': 'Kidney_Friendly',
-        'Liver Disease': 'Liver_Friendly'
-    }
-    
-    if medical_condition in condition_map:
-        # Filter the database to only safe foods
-        filtered_df = df[df[condition_map[medical_condition]] == 1].copy()
+    # 🔥 Filter by disease type first
+    if disease and disease.lower() != "healthy":
+        df_filtered = df[df['disease_type'].str.lower() == disease.lower()]
+    else:
+        # For healthy people, exclude disease patients
+        df_filtered = df[df['disease_type'].isna()]
+
+    # 🔥 Then match similar calorie users
+    df_filtered = df_filtered[
+        (df_filtered['daily_caloric_intake'] > calories - 200) &
+        (df_filtered['daily_caloric_intake'] < calories + 200)
+    ]
+
+    # fallback if empty - use any matching disease
+    if df_filtered.empty:
+        if disease and disease.lower() != "healthy":
+            df_filtered = df[df['disease_type'].str.lower() == disease.lower()]
+        else:
+            df_filtered = df
+
+    # 🔥 Pick best matching record
+    user = df_filtered.sample(1).iloc[0]
+
+    disease = user['disease_type']
+    diet = user['diet_recommendation']
+    restrictions = user['dietary_restrictions']
+    cuisine = user['preferred_cuisine']
+    imbalance = user['dietary_nutrient_imbalance_score']
+    activity = user['physical_activity_level']
+    exercise = user['weekly_exercise_hours']
+
+    # 🔥 Reason generation (dynamic)
+    reason = f"This diet is recommended for {disease} patients with {activity} activity level."
+
+    # 🔥 Restrictions
+    restriction_text = (
+        f"Avoid: {restrictions}" if pd.notna(restrictions)
+        else "No strict dietary restrictions"
+    )
+
+    # 🔥 Health insights
+    if imbalance > 0.7:
+        health_status = "High nutrient imbalance detected."
+        advice = "Improve diet quality and reduce unhealthy intake."
     else:
         filtered_df = df.copy()
 
