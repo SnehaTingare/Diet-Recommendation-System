@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import joblib
+import pickle
 import numpy as np
 from recommender import recommend_foods
 
@@ -12,13 +12,15 @@ CORS(app,
     methods=['GET', 'POST', 'OPTIONS'],
     allow_headers=['Content-Type'])
 
-# ✅ Load model safely
+# ✅ Load our new Assets
 try:
-    model = joblib.load("models/calorie_model.pkl")
-    print("✅ Model loaded successfully")
+    # Note: Using pickle as we did in Jupyter, not joblib
+    with open("diet_model.pkl", "rb") as f:
+        knn_model = pickle.load(f)
+    print("✅ KNN Model loaded successfully")
 except Exception as e:
     print("❌ Model load error:", e)
-    model = None
+    knn_model = None
 
 @app.route('/')
 def home():
@@ -30,25 +32,28 @@ def predict():
         data = request.json
         print("📥 Incoming Data:", data)
 
-        # ✅ Safe input handling
+        # ✅ Extract Inputs
         age = float(data.get('age', 0))
         weight = float(data.get('weight', 0))
         height = float(data.get('height', 0))
+        gender = data.get('gender', 'male')
         activity = float(data.get('activity', 1.2))
         goal = data.get('goal', 'maintain')
         disease = data.get('disease', 'Healthy')
 
-        # ✅ Model prediction
-        if model is None:
-            raise Exception("Model not loaded properly")
+        # Adjust for Goal
+        if goal == 'lose': calories = tdee - 500
+        elif goal == 'gain': calories = tdee + 500
+        else: calories = tdee
 
-        input_data = np.array([[age, weight, height, activity]])
-        calories = model.predict(input_data)[0]
+        # ✅ 2. Get recommendations from our ML KNN Engine
+        # This calls the new recommender.py we just updated
+        plan = recommend_foods(calories, medical_condition=condition, goal=goal)
 
         # ✅ Get detailed plan from dataset
         plan = recommend_foods(calories, goal, disease)
 
-        # ✅ Structured response
+        # ✅ 3. Structured Response for React Frontend
         response = {
             "status": "success",
             "user_input": {
@@ -60,19 +65,14 @@ def predict():
                 "disease": disease
             },
             "analysis": {
+                "bmi": round(weight / ((height/100)**2), 2),
                 "recommended_calories": round(calories, 2),
-                "diet_type": plan.get("diet_type"),
-                "disease": plan.get("disease")
+                "medical_profile": condition
             },
-            "diet_plan": {
-                "reason": plan.get("reason"),
-                "restrictions": plan.get("restrictions"),
-                "preferred_cuisine": plan.get("cuisine")
-            },
-            "health_insights": {
+            "recommendations": plan.get("recommendations"),
+            "insights": {
                 "health_status": plan.get("health_status"),
-                "advice": plan.get("advice"),
-                "activity_tip": plan.get("activity_tip")
+                "advice": plan.get("advice")
             }
         }
 
@@ -86,4 +86,4 @@ def predict():
         }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
